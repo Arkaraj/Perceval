@@ -21,7 +21,7 @@ export async function pushFailedDataToDB(
       await kafkaPublisher.publish(constants.KAFKA_TOPIC, message);
       // would be easier if this was mongoose, would save for loop db call
       await mongoClient.updateDataInCollection(
-        { id: data.id },
+        { _id: data._id },
         { created: true }
       );
       console.log('Pushed data to Kafka:', message);

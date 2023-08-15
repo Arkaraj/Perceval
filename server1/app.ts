@@ -3,7 +3,8 @@ import constants from './constants';
 import { IReply, IQuerystring, IMovie } from './interfaces';
 import { MongoDBClient, NetworkCall, CronJob, KafkaPublisher } from './utils';
 import { pushFailedDataToDB } from './crons';
-const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS } = constants;
+const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS, KAFKA_TOPIC } =
+  constants;
 
 // Need a Factory file for all these objects
 const network = new NetworkCall.default(SERVER2URL);
@@ -54,10 +55,21 @@ server.register(
         }
       }
     );
-    server.post<{ Reply: IReply }>('/', async (_request, reply) => {
+    server.post<{ Reply: IReply }>('/', async (request, reply) => {
       try {
         // Get Data from Request, Send data to server 2 if server 2 is up
         // If its not up then push it to kafka, and return an uid
+        try {
+          // @circuitBreaker({})
+          await network.post('/movies', { data: request.body });
+        } catch (error) {
+          // failed to post
+          dataReflowPublisher.publish(
+            KAFKA_TOPIC,
+            JSON.stringify(request.body),
+            mongoClient
+          );
+        }
         return reply.code(200).send({
           success: true,
           message: `We are still processing the data, processId: ${2}`,
