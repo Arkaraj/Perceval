@@ -23,6 +23,7 @@
     "fastify": "^4.21.0",
     "kafkajs": "^2.2.4",
     "mongodb": "^5.7.0",
-    "node-cron": "^3.0.2"
+    "node-cron": "^3.0.2",
+    "pino": "^8.15.0"
   }
 }

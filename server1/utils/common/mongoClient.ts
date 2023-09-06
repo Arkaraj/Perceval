@@ -5,9 +5,9 @@ import {
   UpdateFilter,
   UpdateOptions,
 } from 'mongodb';
-import { IMovie } from '../interfaces';
+import { IMongoClient, IMovie } from '../../core/interfaces';
 
-export default class MongoDBClient {
+export class MongoDBClient implements IMongoClient {
   private client: MongoClient;
   private collection: Collection<IMovie>;
 

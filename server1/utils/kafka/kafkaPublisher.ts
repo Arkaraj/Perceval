@@ -1,32 +1,27 @@
-import { Kafka, Producer, RecordMetadata } from 'kafkajs';
-import MongoDBClient from './mongoClient';
-// import constants from '../constants';
-// const {DB_URI, DB_NAME, REFLOW_COLLECTION} = constants;
+import { Producer } from 'kafkajs';
+import { IKafkaPublisher, IMongoClient } from '../../core/interfaces';
 
-// const mongoClient = new MongoDBClient(DB_URI, DB_NAME, REFLOW_COLLECTION);
-
-export default class KafkaPublisher {
+export default class KafkaPublisher implements IKafkaPublisher {
   private producer: Producer;
 
-  constructor(brokers: string[]) {
-    const kafka = new Kafka({ brokers });
-    this.producer = kafka.producer();
+  constructor(_producer: Producer) {
+    this.producer = _producer;
   }
 
-  async connect(): Promise<void> {
+  async connect() {
     await this.producer.connect();
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect() {
     await this.producer.disconnect();
   }
 
   async publish(
     topic: string,
     message: string,
-    mongoClient?: MongoDBClient,
+    mongoClient?: IMongoClient,
     key?: string
-  ): Promise<RecordMetadata[]> {
+  ) {
     try {
       const result = await this.producer.send({
         topic,

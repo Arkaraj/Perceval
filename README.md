@@ -7,3 +7,10 @@
 - we can use a dlq for kafka failed produces/consumes or push it to mongo and run cron.
 
 - Note: This project does not have the perfect coding practises/folder structure this is just to implement circuit breaker and other fault tolerance tech.
+
+## TODO:
+
+- Fallback mechanism: Cache latest response of server2 when available (after some condition)
+- Retries: If server 2 fails then retry for n number of times
+- Implement circuit breaker in server 1 based on number of retries || request time taking to long or avg of n request response time
+- Implement monitoring and alerts in server2 when down -> health check for server 2

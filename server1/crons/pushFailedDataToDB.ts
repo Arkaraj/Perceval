@@ -1,11 +1,9 @@
-import constants from '../constants';
-import { IMovie } from '../interfaces';
-import MongoDBClient from '../utils/mongoClient';
-import KafkaPublisher from '../utils/kafkaPublisher';
+import constants from '../core/constants';
+import { IKafkaPublisher, IMongoClient, IMovie } from '../core/interfaces';
 
 export async function pushFailedDataToDB(
-  mongoClient: MongoDBClient,
-  kafkaPublisher: KafkaPublisher
+  mongoClient: IMongoClient,
+  kafkaPublisher: IKafkaPublisher
 ) {
   await mongoClient.connect();
 

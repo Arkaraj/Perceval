@@ -1,23 +1,37 @@
 import Fastify from 'fastify';
-import constants from './constants';
-import { IReply, IQuerystring, IMovie } from './interfaces';
-import { MongoDBClient, NetworkCall, CronJob, KafkaPublisher } from './utils';
+import constants from './core/constants';
+import {
+  IReply,
+  IQuerystring,
+  IMovie,
+  IHttpService,
+  HttpStatusCodes,
+} from './core';
+import {
+  MongoDBClient,
+  HttpNetworkCall,
+  CronJob,
+  KafkaPublisherFactory,
+  logger,
+} from './utils';
 import { pushFailedDataToDB } from './crons';
+import NetworkError from './utils/errors/NetworkError';
 const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS, KAFKA_TOPIC } =
   constants;
 
 // Need a Factory file for all these objects
-const network = new NetworkCall.default(SERVER2URL);
-const mongoClient = new MongoDBClient.default(
-  DB_URI,
-  DB_NAME,
-  REFLOW_COLLECTION
-);
+const network: IHttpService = new HttpNetworkCall(SERVER2URL);
+const mongoClient = new MongoDBClient(DB_URI, DB_NAME, REFLOW_COLLECTION);
 
-const dataReflowPublisher = new KafkaPublisher.default(BROKERS),
-  cronPublisher = new KafkaPublisher.default(BROKERS);
+const kafkaFactory = KafkaPublisherFactory.getInstance();
 
-const cron = new CronJob.default();
+const dataReflowPublisher = kafkaFactory.createPublisher({ brokers: BROKERS }),
+  cronPublisher = kafkaFactory.createPublisher({
+    brokers: BROKERS,
+    connectionTimeout: 3000,
+  });
+
+const cron = new CronJob();
 const cronFunction = pushFailedDataToDB.bind(mongoClient, cronPublisher);
 cron.start(cronFunction);
 
@@ -33,24 +47,35 @@ server.register(
   async function (server, _opts) {
     server.get<{ Querystring: IQuerystring; Reply: IReply }>(
       '/',
-      async (_request, reply) => {
+      async (request, reply) => {
         try {
-          const data = await network.get<IMovie[] | []>(`/movies`);
-          if (data.data) {
+          const response = await network.get<IMovie[] | []>(`/movies`, {
+            params: request.query,
+          });
+
+          if (response.status == 200) {
             return reply
               .code(200)
-              .send({ success: true, message: '', data: data.data });
+              .send({ success: true, message: 'Done', data: response.data });
+          } else {
+            return reply.code(400).send({
+              message: response.data.message,
+              error: response.data.error,
+              success: false,
+            });
           }
-          return reply.code(500).send({
-            success: false,
-            message: 'Internal Server Error',
-            error: 'External Dependency Failure',
-          });
         } catch (error) {
+          if (error instanceof NetworkError) {
+            // check in cache that if response for this request exists or not
+            return reply.code(HttpStatusCodes.ExternalDependencyError).send({
+              success: false,
+              message: 'External Dependency Failure',
+            });
+          }
+
           return reply.code(500).send({
             success: false,
             message: 'Internal Server Error',
-            error: error,
           });
         }
       }
@@ -60,7 +85,7 @@ server.register(
         // Get Data from Request, Send data to server 2 if server 2 is up
         // If its not up then push it to kafka, and return an uid
         try {
-          // @circuitBreaker({})
+          // @CircuitBreaker({})
           await network.post('/movies', { data: request.body });
         } catch (error) {
           // failed to post
@@ -75,10 +100,10 @@ server.register(
           message: `We are still processing the data, processId: ${2}`,
         });
       } catch (error) {
+        logger.error(error);
         return reply.code(500).send({
           success: false,
           message: 'Internal Server Error',
-          error: error,
         });
       }
     });
@@ -88,10 +113,10 @@ server.register(
         // Get status of the data from mongodb itself
         return reply.code(200).send({ success: true, message: '', data: [] });
       } catch (error) {
+        logger.error(error);
         return reply.code(500).send({
           success: false,
           message: 'Internal Server Error',
-          error: error,
         });
       }
     });
@@ -107,9 +132,10 @@ server.listen({ port: 3000 }, async (err, addr) => {
   console.log(`Server listening at ${addr}`);
   try {
     await dataReflowPublisher.connect();
-    console.log('Connected to Kafka Successfully');
+    logger.info('Connected to Kafka Successfully');
   } catch (error) {
-    console.error(err);
+    // Add some logger
+    logger.error('Could not connect to kafka: ', error);
     process.exit(1);
   }
 });
