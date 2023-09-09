@@ -1,0 +1,28 @@
+version: '3.9'
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - '27017:27017'
+    environment:
+      MONGO_INITDB_DATABASE: test
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    ports:
+      - '9092:9092'
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: server1
+    ports:
+      - '3000:3000'
+    depends_on:
+      - mongodb
+      - kafka
+    environment:
+      NODE_ENV: production

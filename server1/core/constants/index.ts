@@ -1,8 +1,8 @@
 export default {
   SERVER2URL: 'http://localhost:3001',
-  DB_URI: 'mongodb://localhost:27017/test',
-  DB_NAME: 'movies',
+  DB_URI: 'mongodb://localhost:27017',
+  DB_NAME: 'test',
   REFLOW_COLLECTION: 'reflow',
-  KAFKA_TOPIC: 'movie',
+  MOVIE_KAFKA_TOPIC: 'movie', // not used, instead this is used in kafka type enums
   BROKERS: ['localhost:9092'],
 };

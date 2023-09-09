@@ -1,0 +1,21 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy the package.json and yarn.lock files into the container
+COPY package.json pnpm-lock.yaml ./
+
+# Install project dependencies using PNPM
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
+
+# Copy the entire project into the container
+COPY . .
+
+# Build the TypeScript project
+RUN pnpm build
+
+EXPOSE 3001
+
+# Start the server
+CMD ["pnpm", "start"]

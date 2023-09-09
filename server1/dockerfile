@@ -1,0 +1,20 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy the package.json and yarn.lock files into the container
+COPY package.json yarn.lock ./
+
+# Install project dependencies with caching
+RUN yarn
+
+# Copy the entire project into the container
+COPY . .
+
+# Build the TypeScript project
+RUN yarn build
+
+EXPOSE 3000
+
+# Start the server
+CMD ["yarn", "start"]

@@ -6,8 +6,6 @@ export interface IMovie {
   plot: string;
   runtime: number;
   release_data: Date;
-  created?: boolean; // this is for reflows only
-  processId?: string; // this is for reflows only
 }
 
 export interface IMovieRequest {

@@ -14,3 +14,5 @@
 - Retries: If server 2 fails then retry for n number of times
 - Implement circuit breaker in server 1 based on number of retries || request time taking to long or avg of n request response time
 - Implement monitoring and alerts in server2 when down -> health check for server 2
+
+- create a docker file which spins up server1, and server2 -> should have same kafka, mongodb, redis

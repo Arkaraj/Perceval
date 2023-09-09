@@ -6,6 +6,8 @@ import {
   IMovie,
   IHttpService,
   HttpStatusCodes,
+  kafkaTopics,
+  IReflow,
 } from './core';
 import {
   MongoDBClient,
@@ -16,23 +18,37 @@ import {
 } from './utils';
 import { pushFailedDataToDB } from './crons';
 import NetworkError from './utils/errors/NetworkError';
-const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS, KAFKA_TOPIC } =
-  constants;
+const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS } = constants;
+import crypto from 'crypto';
+// import {createTopic} from './utils/kafka/kafkaAdmin';
 
 // Need a Factory file for all these objects
 const network: IHttpService = new HttpNetworkCall(SERVER2URL);
-const mongoClient = new MongoDBClient(DB_URI, DB_NAME, REFLOW_COLLECTION);
+const mongoClient = new MongoDBClient<IReflow>(
+  DB_URI,
+  DB_NAME,
+  REFLOW_COLLECTION
+);
 
 const kafkaFactory = KafkaPublisherFactory.getInstance();
 
-const dataReflowPublisher = kafkaFactory.createPublisher({ brokers: BROKERS }),
-  cronPublisher = kafkaFactory.createPublisher({
+const dataReflowPublisher = kafkaFactory.createPublisher(
+  { brokers: BROKERS, retry: { initialRetryTime: 2 } },
+  kafkaTopics.MOVIE
+);
+const cronPublisher = kafkaFactory.createPublisher(
+  {
     brokers: BROKERS,
     connectionTimeout: 3000,
-  });
+  },
+  kafkaTopics.MOVIE
+);
 
 const cron = new CronJob();
-const cronFunction = pushFailedDataToDB.bind(mongoClient, cronPublisher);
+const cronFunction = pushFailedDataToDB.bind(
+  this,
+  ...[mongoClient, cronPublisher]
+);
 cron.start(cronFunction);
 
 const server = Fastify({
@@ -43,6 +59,7 @@ server.get<{ Reply: IReply }>('/', async function handler(_req, reply) {
   return reply.code(200).send({ message: 'Server 1 Running', success: true });
 });
 
+// Move controller's logic to controller folder
 server.register(
   async function (server, _opts) {
     server.get<{ Querystring: IQuerystring; Reply: IReply }>(
@@ -80,25 +97,37 @@ server.register(
         }
       }
     );
-    server.post<{ Reply: IReply }>('/', async (request, reply) => {
+    server.post<{ Reply: IReply }>('/', async (request: any, reply) => {
       try {
-        // Get Data from Request, Send data to server 2 if server 2 is up
+        // Get Data from Request, Send data to server 2 if server 2 is up (check from circuit breaker)
         // If its not up then push it to kafka, and return an uid
         try {
           // @CircuitBreaker({})
-          await network.post('/movies', { data: request.body });
+          const data = await network.post('/movies', { data: request.body });
+          return reply.code(200).send({
+            success: true,
+            data: data.data,
+            message: 'Added Movie to database',
+          });
         } catch (error) {
           // failed to post
-          dataReflowPublisher.publish(
-            KAFKA_TOPIC,
-            JSON.stringify(request.body),
-            mongoClient
-          );
+          const processId = crypto.randomUUID();
+          let dataBody: any = {
+            data: { ...request.body },
+            processId,
+            success: false,
+            retries: 5,
+          };
+          dataReflowPublisher
+            .publish<IReflow>(JSON.stringify(dataBody), mongoClient)
+            .catch((error) => {
+              logger.error('Caught Error: ', error?.metadata);
+            });
+          return reply.code(200).send({
+            success: true,
+            message: `We are still processing the data, processId: ${processId}`,
+          });
         }
-        return reply.code(200).send({
-          success: true,
-          message: `We are still processing the data, processId: ${2}`,
-        });
       } catch (error) {
         logger.error(error);
         return reply.code(500).send({
@@ -134,8 +163,7 @@ server.listen({ port: 3000 }, async (err, addr) => {
     await dataReflowPublisher.connect();
     logger.info('Connected to Kafka Successfully');
   } catch (error) {
-    // Add some logger
     logger.error('Could not connect to kafka: ', error);
-    process.exit(1);
+    // process.exit(1);
   }
 });
