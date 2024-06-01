@@ -4,13 +4,16 @@ export interface INetworkRequestOptions extends AxiosRequestConfig {
   body?: any;
 }
 
-// export interface INetworkResponse<T> {
-//   status: number;
-//   data: T;
-// }
+export interface IAxiosRequestWithRetryConfig
+  extends Partial<AxiosRequestConfig> {
+  retryCount?: number;
+  retryStatusCodes?: string[];
+  backoff?: number;
+  timeout?: number;
+}
 
 export interface INetworkResponse<T> extends AxiosResponse<T> {
-  status: 200 | 400 | 500;
+  status: 200 | 400 | 500 | 503;
 }
 
 interface INetworkSuccessResponse<T> {
@@ -23,7 +26,7 @@ interface INetworkErrorResponse {
   data: { message: string; error: string };
 }
 
-export type INetworkResponseOrError<T> =
+export type NetworkResponseOrError<T> =
   | INetworkSuccessResponse<T>
   | INetworkErrorResponse;
 
@@ -31,10 +34,10 @@ export abstract class IHttpService {
   abstract get<T = any>(
     endpoint: string,
     options?: INetworkRequestOptions
-  ): Promise<INetworkResponseOrError<T>>;
+  ): Promise<NetworkResponseOrError<T>>;
 
   abstract post<T = any>(
     endpoint: string,
     options?: INetworkRequestOptions
-  ): Promise<INetworkResponseOrError<T>>;
+  ): Promise<NetworkResponseOrError<T>>;
 }

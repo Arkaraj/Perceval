@@ -4,23 +4,30 @@ import {
   INetworkRequestOptions,
   INetworkResponse,
   HttpStatusCodes,
-  INetworkResponseOrError,
+  NetworkResponseOrError,
+  IAxiosRequestWithRetryConfig,
+  IRetryStrategy,
 } from '../../core';
 import NetworkError from '../errors/NetworkError';
 
 export class HttpNetworkCall implements IHttpService {
-  private httpService: Axios;
+  private httpService: Axios; // ideally this should come from dependency injection
 
-  constructor(baseURL?: string) {
-    let networkConfig: AxiosRequestConfig = {};
+  constructor(
+    baseURL: string,
+    networkConfig: Partial<AxiosRequestConfig>,
+    retryStrategy?: IRetryStrategy
+  ) {
     if (baseURL) networkConfig.baseURL = baseURL;
     this.httpService = axios.create(networkConfig);
+    if (retryStrategy) retryStrategy.addRetry(this.httpService);
   }
+
   private async request<T>(
     method: string,
     endpoint: string,
-    options?: AxiosRequestConfig
-  ): Promise<INetworkResponseOrError<T>> {
+    options?: IAxiosRequestWithRetryConfig
+  ): Promise<NetworkResponseOrError<T>> {
     try {
       const response: INetworkResponse<T> = await this.httpService.request({
         method,
@@ -28,7 +35,12 @@ export class HttpNetworkCall implements IHttpService {
         ...options,
       });
 
-      if (response.status == 500) throw new Error('Server2 responded with 500');
+      if (
+        response.status == HttpStatusCodes.InternalServerError ||
+        response.status == HttpStatusCodes.ServiceUnavailable
+      ) {
+        throw new Error('Requested Server responded with 500');
+      }
 
       return {
         status: response.status as 200, // had to do this trick to fix errors :(
@@ -45,7 +57,7 @@ export class HttpNetworkCall implements IHttpService {
   public async get<T>(
     endpoint: string,
     options?: INetworkRequestOptions
-  ): Promise<INetworkResponseOrError<T>> {
+  ): Promise<NetworkResponseOrError<T>> {
     try {
       return this.request<T>('GET', endpoint, options);
     } catch (error) {

@@ -8,6 +8,7 @@ import {
   HttpStatusCodes,
   kafkaTopics,
   IReflow,
+  IRetryStrategy,
 } from './core';
 import {
   MongoDBClient,
@@ -15,28 +16,38 @@ import {
   CronJob,
   KafkaPublisherFactory,
   logger,
+  HttpExponentialRetryStrategy,
 } from './utils';
 import { pushFailedDataToDB } from './crons';
 import NetworkError from './utils/errors/NetworkError';
 const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS } = constants;
-import crypto from 'crypto';
-// import {createTopic} from './utils/kafka/kafkaAdmin';
+import { randomUUID } from 'crypto';
 
 // Need a Factory file for all these objects
-const network: IHttpService = new HttpNetworkCall(SERVER2URL);
+const exponentialRetry: IRetryStrategy = new HttpExponentialRetryStrategy({
+  maxRetryCount: 3,
+  retryStatusCodes: [500, 503],
+  backoff: 200,
+  retryOnCodes: ['ECONNREFUSED', 'EPROTO'],
+});
+const network: IHttpService = new HttpNetworkCall(
+  SERVER2URL,
+  { timeout: 5000 },
+  exponentialRetry
+);
 const mongoClient = new MongoDBClient<IReflow>(
   DB_URI,
   DB_NAME,
   REFLOW_COLLECTION
 );
 
-const kafkaFactory = KafkaPublisherFactory.getInstance();
+const kafkaInstance = KafkaPublisherFactory.getInstance();
 
-const dataReflowPublisher = kafkaFactory.createPublisher(
+const dataReflowPublisher = kafkaInstance.createPublisher(
   { brokers: BROKERS, retry: { initialRetryTime: 2 } },
   kafkaTopics.MOVIE
 );
-const cronPublisher = kafkaFactory.createPublisher(
+const cronPublisher = kafkaInstance.createPublisher(
   {
     brokers: BROKERS,
     connectionTimeout: 3000,
@@ -71,9 +82,7 @@ server.register(
           });
 
           if (response.status == 200) {
-            return reply
-              .code(200)
-              .send({ success: true, message: 'Done', data: response.data });
+            return reply.code(200).send({ success: true, data: response.data });
           } else {
             return reply.code(400).send({
               message: response.data.message,
@@ -111,7 +120,7 @@ server.register(
           });
         } catch (error) {
           // failed to post
-          const processId = crypto.randomUUID();
+          const processId = randomUUID();
           let dataBody: any = {
             data: { ...request.body },
             processId,
@@ -137,10 +146,26 @@ server.register(
       }
     });
 
-    server.get<{ Reply: IReply }>('/:processId', async (_request, reply) => {
+    server.get<{ Reply: IReply }>('/:processId', async (req: any, reply) => {
       try {
         // Get status of the data from mongodb itself
-        return reply.code(200).send({ success: true, message: '', data: [] });
+        const processId = req?.params?.processId;
+        const reflowData = await mongoClient.getDataFromCollection({
+          processId,
+        });
+        if (!reflowData?.length) {
+          return reply.status(400).send({
+            success: false,
+            message: 'Invalid ProcessId sent',
+          });
+        }
+        return reply.code(200).send({
+          success: true,
+          data: {
+            ...reflowData[0],
+            didDataReflow: reflowData[0].success,
+          },
+        });
       } catch (error) {
         logger.error(error);
         return reply.code(500).send({
@@ -152,6 +177,14 @@ server.register(
   },
   { prefix: '/api/movie' }
 );
+
+process.on('beforeExit', (code) => {
+  console.error(`Process beforeExit event with code: ${code}`);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error(`Process uncaughtException event with error: ${error}`);
+});
 
 server.listen({ port: 3000 }, async (err, addr) => {
   if (err) {

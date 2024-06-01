@@ -1,3 +1,5 @@
+Fault-tolerance is one of the biggest concerns of distributed systems.
+
 - circuit breaker on - rest api with secure middleware -> only for project not for real world
 
 - try creating a decorator rather than a function for circuit breaker -> learning purpose

@@ -14,4 +14,6 @@ export default {
   RedisCacheStore: {
     movies: 'movie',
   },
+  KAFKA_BROKERS: ['localhost:9092'],
+  KAFKA_GROUP_ID: 'server-2',
 };

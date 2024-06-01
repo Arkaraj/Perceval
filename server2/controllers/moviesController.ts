@@ -1,34 +1,60 @@
-import { Request, Response } from 'express';
-import movieModel from '../model/movie';
-// import { Redis } from '../utils';
-import { movieService } from '../services';
-// const redisCache = Redis.getInstance();
+import { Response } from 'express';
+import { movieService, MovieServices } from '../services';
+import { Result } from '../util/response.util';
 
-export const getAllMoviesByFilter = async (req: Request, res: Response) => {
-  const name = req.query.name;
-  // const cacheKey = `${config.RedisCacheStore.movies}:${name}`;
-  if (name) {
-    // Add a method to invalidate the cache as well
-    const movies = await movieService.fetchMoviesByName(name as string);
-    return res.status(200).json(movies);
-  }
-  // this could have been added to one single service
-  const movies = await movieService.fetchAllMovies();
+export class MovieController {
+  constructor(private readonly movieService: MovieServices) {}
 
-  return res.status(200).json(movies);
-};
-
-export const getAllMovieById = async (req: Request, res: Response) => {
-  if (!req.params?.id) {
+  private controllerError(req: any, res: Response, error: any) {
     return res
-      .status(400)
-      .json({ message: 'Invalid request, missing id', success: false });
+      .status(500)
+      .json(Result.error(error?.message || 'ISE', req?.traceId));
   }
-  const movies = await movieModel.findById(req.params?.id).lean();
-  return res.status(200).json(movies);
-};
 
-export const createMovie = async (req: Request, res: Response) => {
-  await movieModel.create(req.body);
-  return res.status(200).json('done');
-};
+  public async getAllMoviesByFilter(req: any, res: Response) {
+    try {
+      const name = req.query.name;
+      if (name) {
+        console.log(this);
+        // Add a method to invalidate the cache as well
+        const movies = await this.movieService.fetchMoviesByName(
+          name as string
+        );
+        return res.status(200).json(Result.success(movies, req?.traceId));
+      }
+      // this could have been added to one single service
+      const movies = await this.movieService.fetchAllMovies();
+
+      return res.status(200).json(Result.success(movies, req?.traceId));
+    } catch (error) {
+      return this.controllerError(req, res, error);
+    }
+  }
+
+  public async getAllMovieById(req: any, res: Response) {
+    try {
+      if (!req.params?.id) {
+        return res
+          .status(400)
+          .json({ message: 'Invalid request, missing id', success: false });
+      }
+      const movie = await this.movieService.fetchMovieById(req?.params?.id);
+      return res.status(200).json(Result.success(movie, req?.traceId));
+    } catch (error) {
+      return this.controllerError(req, res, error);
+    }
+  }
+
+  public async createMovie(req: any, res: Response) {
+    try {
+      await this.movieService.addMovie(req.body);
+      return res.status(200).json(Result.success('done', req?.traceId));
+    } catch (error) {
+      return this.controllerError(req, res, error);
+    }
+  }
+}
+
+export const movieController: MovieController = new MovieController(
+  movieService
+);

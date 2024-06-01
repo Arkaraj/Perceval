@@ -2,6 +2,7 @@ import RedisConn from 'ioredis';
 import config from '../config';
 import { IRedis } from '../core';
 
+// Ideally this should be CacheManager and then dependency injection should bring in redis
 export class Redis implements IRedis {
   private redis: RedisConn;
   private static instance: IRedis;
@@ -39,6 +40,9 @@ export class Redis implements IRedis {
           return resolve(JSON.parse(data));
         }
         const newData = await cb();
+        if (!newData || newData?.length == 0) {
+          resolve(newData);
+        }
         this.redis.setex(key, expiry, JSON.stringify(newData));
         resolve(newData);
       });
@@ -58,9 +62,9 @@ export class Redis implements IRedis {
       const originalMethod = descriptor.value;
       descriptor.value = async function (...args: any[]) {
         const redis = new Redis();
-        // const cacheKey = key;
+        const cacheKey = args?.[0] ? `${key}:${args[0]}` : key;
         return await redis.getOrSet(
-          `${key}:${args[0]}`,
+          cacheKey,
           originalMethod.bind(this, args),
           expiry
         );
