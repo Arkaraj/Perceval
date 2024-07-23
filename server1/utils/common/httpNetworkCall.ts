@@ -6,7 +6,7 @@ import {
   HttpStatusCodes,
   NetworkResponseOrError,
   IAxiosRequestWithRetryConfig,
-  IRetryStrategy,
+  IHttpRetryStrategy,
 } from '../../core';
 import NetworkError from '../errors/NetworkError';
 
@@ -16,7 +16,7 @@ export class HttpNetworkCall implements IHttpService {
   constructor(
     baseURL: string,
     networkConfig: Partial<AxiosRequestConfig>,
-    retryStrategy?: IRetryStrategy
+    retryStrategy?: IHttpRetryStrategy
   ) {
     if (baseURL) networkConfig.baseURL = baseURL;
     this.httpService = axios.create(networkConfig);
@@ -24,7 +24,7 @@ export class HttpNetworkCall implements IHttpService {
   }
 
   private async request<T>(
-    method: string,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
     options?: IAxiosRequestWithRetryConfig
   ): Promise<NetworkResponseOrError<T>> {
@@ -68,6 +68,14 @@ export class HttpNetworkCall implements IHttpService {
   public async post<T>(endpoint: string, options?: INetworkRequestOptions) {
     try {
       return this.request<T>('POST', endpoint, options);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async put<T>(endpoint: string, options?: INetworkRequestOptions) {
+    try {
+      return this.request<T>('PUT', endpoint, options);
     } catch (error) {
       throw error;
     }

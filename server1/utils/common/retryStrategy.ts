@@ -1,11 +1,17 @@
 import { Axios, AxiosResponse } from 'axios';
-import { IRetryStrategy, IRetryConfig, HttpStatusCodes } from '../../core';
+import {
+  IHttpRetryStrategy,
+  IHttpRetryConfig,
+  HttpStatusCodes,
+  ICircuitBreakerTriggerStrategy,
+  CircuitBreakerState,
+} from '../../core';
 import { logger } from '../../utils';
 
-export class HttpExponentialRetryStrategy implements IRetryStrategy {
-  private retryConfig: IRetryConfig;
+export class HttpExponentialRetryStrategy implements IHttpRetryStrategy {
+  private retryConfig: IHttpRetryConfig;
   private httpInstance: Axios;
-  constructor(_retryConfig: IRetryConfig) {
+  constructor(_retryConfig: IHttpRetryConfig) {
     this.retryConfig = _retryConfig;
   }
 
@@ -113,5 +119,35 @@ export class HttpExponentialRetryStrategy implements IRetryStrategy {
       this.onResponse.bind(this),
       this.onResponseError.bind(this)
     );
+  }
+}
+
+export class FailureRateTriggerStrategy
+  implements ICircuitBreakerTriggerStrategy
+{
+  private failureRateThreshold: number;
+
+  constructor(failureRateThreshold: number) {
+    this.failureRateThreshold = failureRateThreshold;
+  }
+
+  public shouldOpen(
+    failureCount: number,
+    successCount: number,
+    requestCount: number
+  ): boolean {
+    const failureRate = failureCount / requestCount;
+    return failureRate >= this.failureRateThreshold;
+  }
+
+  public shouldHalfOpen(
+    lastFailureTime: number,
+    waitDurationInOpenState: number
+  ): boolean {
+    return Date.now() - lastFailureTime >= waitDurationInOpenState;
+  }
+
+  public shouldClose(successCount: number): boolean {
+    return successCount > 0;
   }
 }

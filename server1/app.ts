@@ -8,7 +8,7 @@ import {
   HttpStatusCodes,
   kafkaTopics,
   IReflow,
-  IRetryStrategy,
+  IHttpRetryStrategy,
 } from './core';
 import {
   MongoDBClient,
@@ -17,14 +17,16 @@ import {
   KafkaPublisherFactory,
   logger,
   HttpExponentialRetryStrategy,
+  CircuitBreakerFactory,
 } from './utils';
 import { pushFailedDataToDB } from './crons';
 import NetworkError from './utils/errors/NetworkError';
+import CircuitBreakerError from './utils/errors/CircuitBreakerError';
 const { SERVER2URL, DB_URI, DB_NAME, REFLOW_COLLECTION, BROKERS } = constants;
 import { randomUUID } from 'crypto';
 
 // Need a Factory file for all these objects
-const exponentialRetry: IRetryStrategy = new HttpExponentialRetryStrategy({
+const exponentialRetry: IHttpRetryStrategy = new HttpExponentialRetryStrategy({
   maxRetryCount: 3,
   retryStatusCodes: [500, 503],
   backoff: 200,
@@ -61,6 +63,9 @@ const cronFunction = pushFailedDataToDB.bind(
   ...[mongoClient, cronPublisher]
 );
 cron.start(cronFunction);
+
+const server2CircuitBreaker =
+  CircuitBreakerFactory.getCircuitBreakerInstanceBasedOnPriority(0);
 
 const server = Fastify({
   logger: true,
@@ -111,7 +116,9 @@ server.register(
         // Get Data from Request, Send data to server 2 if server 2 is up (check from circuit breaker)
         // If its not up then push it to kafka, and return an uid
         try {
-          // @CircuitBreaker({})
+          // const data = await server2CircuitBreaker.call<Promise<NetworkResponseOrError<any>>>(
+          //   network.post.bind(network, ['/movies', { data: request.body }])
+          // );
           const data = await network.post('/movies', { data: request.body });
           return reply.code(200).send({
             success: true,
@@ -171,6 +178,40 @@ server.register(
         return reply.code(500).send({
           success: false,
           message: 'Internal Server Error',
+        });
+      }
+    });
+
+    server.put('/:movieId', async (req: any, reply) => {
+      try {
+        const data = await server2CircuitBreaker.call(() =>
+          network.put(`/movies/${req.params.movieId}`, { data: req.body })
+        );
+
+        console.log(
+          'circuitBreakerState: ',
+          server2CircuitBreaker.getCurrentState()
+        );
+        return reply.code(200).send({
+          success: true,
+          data: data.data,
+          message: 'Updated Movie to database',
+        });
+      } catch (error) {
+        console.log(
+          'circuitBreakerState: ',
+          server2CircuitBreaker.getCurrentState()
+        );
+        logger.error(error);
+        let message = 'Internal Server Error';
+        if (error instanceof CircuitBreakerError) {
+          // do stuff over here
+          message = 'Processing your request';
+        }
+
+        return reply.code(500).send({
+          success: false,
+          message,
         });
       }
     });

@@ -20,6 +20,20 @@ export class MovieServices {
   public async addMovie(movie: IMovie) {
     return await movieModel.create(movie);
   }
+
+  public async updateMovie(movieId: string, movieDetails: Partial<IMovie>) {
+    const redisInstance = Redis.getInstance();
+    const response = await Promise.all([
+      movieModel
+        .findByIdAndUpdate(movieId, movieDetails, {
+          new: true,
+        })
+        .lean(),
+      redisInstance.del(config.RedisCacheStore.movies),
+    ]);
+    console.log('FASDFASDFASD: ', response);
+    return response[0];
+  }
 }
 
 export const movieService = new MovieServices();

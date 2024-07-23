@@ -40,4 +40,9 @@ export abstract class IHttpService {
     endpoint: string,
     options?: INetworkRequestOptions
   ): Promise<NetworkResponseOrError<T>>;
+
+  abstract put<T = any>(
+    endpoint: string,
+    options?: INetworkRequestOptions
+  ): Promise<NetworkResponseOrError<T>>;
 }

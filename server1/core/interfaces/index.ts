@@ -8,3 +8,4 @@ export * from './kafkaFactory';
 export * from './cron';
 export * from './reflow';
 export * from './retryStrategry';
+export * from './circuitBreaker';

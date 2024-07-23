@@ -1,10 +1,10 @@
 import { Axios } from 'axios';
 
-export interface IRetryStrategy {
+export interface IHttpRetryStrategy {
   addRetry(httpInstance: Axios): void; // this should ideally be httpInstance: IHttpInstace
 }
 
-export interface IRetryConfig {
+export interface IHttpRetryConfig {
   maxRetryCount: number;
   retryStatusCodes?: number[];
   backoff: number;

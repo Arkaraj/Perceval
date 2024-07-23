@@ -53,6 +53,15 @@ export class MovieController {
       return this.controllerError(req, res, error);
     }
   }
+
+  public async updateMovie(req: any, res: Response) {
+    try {
+      await this.movieService.updateMovie(req.params.id, req.body);
+      return res.status(200).json(Result.success('done', req?.traceId));
+    } catch (error) {
+      return this.controllerError(req, res, error);
+    }
+  }
 }
 
 export const movieController: MovieController = new MovieController(

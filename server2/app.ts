@@ -52,6 +52,8 @@ app.get('/movies/:id', movieController.getAllMovieById.bind(movieController));
 
 app.post('/movies', movieController.createMovie.bind(movieController));
 
+app.put('/movies/:id', movieController.updateMovie.bind(movieController));
+
 process.on('beforeExit', (code) => {
   console.error(`Process beforeExit event with code: ${code}`);
 });

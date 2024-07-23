@@ -12,7 +12,7 @@ export class KafkaPublisherFactory implements IKafkaPublisherFactory {
   private constructor() {}
 
   // Singleton pattern to ensure there's only one factory instance
-  static getInstance(): KafkaPublisherFactory {
+  static getInstance(): IKafkaPublisherFactory {
     if (!this.instance) {
       this.instance = new KafkaPublisherFactory();
     }

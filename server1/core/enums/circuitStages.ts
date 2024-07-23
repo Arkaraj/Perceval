@@ -1,5 +1,5 @@
-export enum CircuitStages {
-  open = 'OPEN',
-  halfOpen = 'HALF_OPEN',
-  closed = 'CLOSED',
+export enum CircuitBreakerState {
+  OPEN = 'OPEN',
+  HALF_OPEN = 'HALF_OPEN',
+  CLOSED = 'CLOSED',
 }
